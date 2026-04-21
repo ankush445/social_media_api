@@ -1,0 +1,63 @@
+const jwt = require('jsonwebtoken');
+const User = require('../models/User');
+
+const ApiError = require('../utils/appError'); // 🔥 fix name
+const statusCodes = require('../constants/statusCodes');
+const messages = require('../constants/messages');
+
+const authMiddleware = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    // ❌ No token
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      throw new ApiError(
+        statusCodes.UNAUTHORIZED,
+        messages.NO_TOKEN
+      );
+    }
+
+    const token = authHeader.split(' ')[1];
+
+    let decoded;
+
+    try {
+      // 🔥 verify token
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (err) {
+      // 🔥 differentiate errors
+      if (err.name === 'TokenExpiredError') {
+        throw new ApiError(
+          statusCodes.UNAUTHORIZED,
+          messages.TOKEN_EXPIRED
+        );
+      }
+
+      throw new ApiError(
+        statusCodes.UNAUTHORIZED,
+        messages.INVALID_TOKEN
+      );
+    }
+
+    // 🔥 fetch user
+    const user = await User.findById(decoded.id).select(
+      '-password -refreshToken -__v'
+    );
+
+    if (!user) {
+      throw new ApiError(
+        statusCodes.UNAUTHORIZED,
+        messages.USER_NOT_FOUND
+      );
+    }
+
+    // ✅ attach user
+    req.user = user;
+
+    next();
+  } catch (error) {
+    next(error); // 🔥 pass original error
+  }
+};
+
+module.exports = authMiddleware;
