@@ -16,14 +16,34 @@ exports.addComment = asyncHandler(async (req, res) => {
 });
 
 exports.getComments = asyncHandler(async (req, res) => {
+
+  const { postId } = req.params;
   const result = await commentService.getComments(
-    req.params.postId,
+    postId,
+    req.user._id,
     req.query
   );
 
   res.status(statusCodes.SUCCESS).json({
     success: true,
-    data: result.comments,
+    data: result.data,
+    nextCursor: result.nextCursor,
+    hasMore: result.hasMore,
+  });
+});
+
+exports.getReplies = asyncHandler(async (req, res) => {
+
+  const { commentId } = req.params;
+  const result = await commentService.getReplies(
+    commentId,
+    req.user._id,
+    req.query
+  );
+
+  res.status(statusCodes.SUCCESS).json({
+    success: true,
+    data: result.data,
     nextCursor: result.nextCursor,
     hasMore: result.hasMore,
   });
@@ -31,13 +51,15 @@ exports.getComments = asyncHandler(async (req, res) => {
 
 exports.toggleLike = asyncHandler(async (req, res) => {
 
+  const { commentId } = req.params;
+
   const result = await commentService.toggleLikeComment(
-    req.params.commentId,
+    commentId,
     req.user._id
   );
 
-  res.status(200).json({
+  res.status(statusCodes.SUCCESS).json({
     success: true,
-    data: result,
+    ... result, // { liked: true/false }
   });
 });

@@ -39,5 +39,6 @@ module.exports = {
   POST_ID_REQUIRED: 'Post ID is required',
   PARENT_COMMENT_NOT_FOUND: 'Parent comment not found',
   REPLY_TO_DIFFERENT_POST: 'Cannot reply to a comment from a different post',
+  COMMENT_ID_REQUIRED: 'Comment ID is required',
 
 };

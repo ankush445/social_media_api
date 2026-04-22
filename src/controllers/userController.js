@@ -49,7 +49,7 @@ exports.refreshToken = asyncHandler(async (req, res) => {
   const newAccessToken = jwt.sign(
     { id: user._id },
     process.env.JWT_SECRET,
-    { expiresIn: '15m' }
+    { expiresIn: '7d' }  // Change to '15m' for real apps
   );
 
   res.json({
