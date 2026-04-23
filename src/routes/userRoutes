@@ -6,6 +6,13 @@ const authMiddleware = require('../middleware/authMiddleware');
 router.post('/signup', userController.signup);
 router.post('/login', userController.login);
 router.post('/refresh-token', userController.refreshToken);
+router.get('/check-username', userController.checkUsername);
+router.post('/forgot-password', userController.forgotPassword);
+router.post('/reset-password', userController.resetPassword);
+
+
+router.put('/username', authMiddleware,userController.updateUsername);
+
 // router.get('/me', authMiddleware, userController.getMyProfile);
 // router.get('/getUsers', authMiddleware, userController.getUsers);
 // router.get('/with-posts', authMiddleware, userController.getUsersWithPosts);

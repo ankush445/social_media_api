@@ -6,6 +6,15 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  username: {
+    type: String,
+    required: true,
+    unique: true,
+    sparse: true, // 🔥 IMPORTANT
+    lowercase: true,
+    trim: true,
+    minlength: 3,
+  },
   email: {
     type: String,
     required: true,
@@ -19,7 +28,13 @@ const userSchema = new mongoose.Schema({
   },
   refreshToken: {
   type: String,
-}
+},
+resetPasswordToken: {
+  type: String,
+},
+resetPasswordExpire: {
+  type: Date,
+},
 }, { timestamps: true });
 
-module.exports = mongoose.model('User', userSchema);
+module.exports = mongoose.models.User || mongoose.model('User', userSchema);

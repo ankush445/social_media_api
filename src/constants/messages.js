@@ -3,6 +3,12 @@ const comment = require("../models/comment");
 module.exports = {
   USER_CREATED: 'User created successfully',
   USER_NOT_FOUND: 'User not found',
+  USERNAME_EXISTS: 'Username already exists',
+  USERNAME_REQUIRED: 'Username is required',
+  USERNAME_INVALID: 'Username can only contain letters, numbers and underscore',
+  USERNAME_TOO_SHORT: 'Username must be at least 3 characters',
+  USERNAME_ALREADY_TAKEN: 'Username already taken',
+  USERNAME_UPDATED: 'Username updated successfully',
   INVALID_CREDENTIALS: 'Invalid credentials',
   EMAIL_EXISTS: 'Email already exists',
   SERVER_ERROR: 'Something went wrong',
@@ -10,6 +16,11 @@ module.exports = {
   INVALID_TOKEN: 'Invalid or expired token',
   TOKEN_EXPIRED: 'Token expired, please login again',
   LOGOUT_SUCCESS: 'Logged out successfully',
+  EMAIL_REQUIRED: 'Email is required',
+  FORGOT_PASSWORD_EMAIL_SENT: 'Reset password link sent',
+INVALID_RESET_TOKEN: 'Invalid or expired reset token',
+PASSWORD_RESET_SUCCESS: 'Password reset successful',
+PASSWORD_REQUIRED: 'Password is required',
 
   // For userService
   EMAIL_EXISTS: 'Email already exists',

@@ -3,7 +3,7 @@ const { CREATED, SUCCESS } = require('../constants/statusCodes');
 const messages = require('../constants/messages');
 const asyncHandler = require('../utils/asyncHandler');
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const User = require('../models/user');
 
 
 // ✅ Signup
@@ -67,38 +67,87 @@ exports.logout = asyncHandler(async (req, res) => {
   res.json({ success: true, message: messages.LOGOUT_SUCCESS });
 });
 
-// ✅ My Profile
-exports.getMyProfile = asyncHandler(async (req, res) => {
-  const data = await userService.getMyProfileWithPosts(req.user._id);
+exports.checkUsername = asyncHandler(async (req, res) => {
+  const { username } = req.query;
 
-  res.status(SUCCESS).json({
+  const result = await userService.checkUsernameAvailability(username);
+
+  res.json({
     success: true,
-    message: messages.PROFILE_FETCHED,
-    data,
+    ...result,
   });
 });
+
+exports.forgotPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+
+  const result = await userService.forgotPassword(email);
+
+  res.json({
+    success: true,
+    message: messages.FORGOT_PASSWORD_EMAIL_SENT,
+    ... result, // 🔥 remove in production
+  });
+});
+
+exports.resetPassword = asyncHandler(async (req, res) => {
+  const { token, password } = req.body;
+
+  await userService.resetPassword(token, password);
+
+  res.json({
+    success: true,
+    message: messages.PASSWORD_RESET_SUCCESS,
+  });
+});
+
+exports.updateUsername = asyncHandler(async (req, res) => {
+  const { username } = req.body;
+
+  const user = await userService.updateUsername(
+    req.user._id,
+    username
+  );
+
+  res.status(statusCodes.SUCCESS).json({
+    success: true,
+    message: messages.USERNAME_UPDATED,
+    data: user,
+  });
+});
+
+// ✅ My Profile
+// exports.getMyProfile = asyncHandler(async (req, res) => {
+//   const data = await userService.getMyProfileWithPosts(req.user._id);
+
+//   res.status(SUCCESS).json({
+//     success: true,
+//     message: messages.PROFILE_FETCHED,
+//     data,
+//   });
+// });
 
 // ✅ Get Users (pagination/search)
-exports.getUsers = asyncHandler(async (req, res) => {
-  const result = await userService.getUsers(req.query);
+// exports.getUsers = asyncHandler(async (req, res) => {
+//   const result = await userService.getUsers(req.query);
 
-  res.status(SUCCESS).json({
-    success: true,
-    message: messages.USERS_RETRIEVED,
-    data: result,
-  });
-});
+//   res.status(SUCCESS).json({
+//     success: true,
+//     message: messages.USERS_RETRIEVED,
+//     data: result,
+//   });
+// });
 
-// ✅ Get Users with Posts
-exports.getUsersWithPosts = asyncHandler(async (req, res) => {
-  const data = await userService.getUsersWithPosts();
+// // ✅ Get Users with Posts
+// exports.getUsersWithPosts = asyncHandler(async (req, res) => {
+//   const data = await userService.getUsersWithPosts();
 
-  res.status(SUCCESS).json({
-    success: true,
-    message: messages.USERS_WITH_POSTS_FETCHED,
-    data,
-  });
-});
+//   res.status(SUCCESS).json({
+//     success: true,
+//     message: messages.USERS_WITH_POSTS_FETCHED,
+//     data,
+//   });
+// });
 
 // ✅ Delete User
 exports.deleteUser = asyncHandler(async (req, res) => {
