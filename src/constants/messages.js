@@ -27,6 +27,7 @@ module.exports = {
   POST_NOT_FOUND: 'Post not found',
   POST_DELETED: 'Post deleted successfully',
   FEED_FETCHED: 'Posts fetched successfully',
+  USER_POSTS_FETCHED: 'User posts fetched successfully',
 
   // For PostService
   POST_NOT_FOUND: 'Post not found',

@@ -25,3 +25,19 @@ exports.getFeed = asyncHandler(async (req, res) => {
     ...result, // 🔥 flatten response (no nesting)
   });
 });
+
+exports.getUserPosts = asyncHandler(async (req, res) => {
+  const { userId } = req.params; // 🔥 from URL
+
+  const result = await postService.getUserPosts(
+    req.query,
+    userId,
+    req.user._id // current logged-in user
+  );
+
+  res.status(statusCodes.SUCCESS).json({
+    success: true,
+    message: messages.USER_POSTS_FETCHED,
+    ...result,
+  });
+});
