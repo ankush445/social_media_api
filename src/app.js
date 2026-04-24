@@ -5,6 +5,8 @@ const userRoutes = require('./routes/userRoutes');
 const postRoutes = require('./routes/postRoutes');
 const likeRoutes = require('./routes/likeRoutes');
 const commentRoutes = require('./routes/commentRoutes');
+const followRoutes = require('./routes/followRoutes');
+
 
 // Middleware
 const loggerMiddleware = require('./middleware/loggerMiddleWare');
@@ -23,6 +25,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/likes', likeRoutes);
 app.use('/api/comments', commentRoutes);
+app.use('/api/follow', followRoutes);
 
 
 // ✅ LAST middleware

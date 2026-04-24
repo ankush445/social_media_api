@@ -138,6 +138,7 @@ exports.getFeed = async (query, userId) => {
         'user._id': 1,
         'user.name': 1,
         'user.email': 1,
+        'user.username': 1,
       },
     },
   ]);
@@ -269,6 +270,7 @@ exports.getUserPosts = async (query, profileUserId, currentUserId) => {
         'user._id': 1,
         'user.name': 1,
         'user.email': 1,
+        'user.username': 1,
       },
     },
   ]);

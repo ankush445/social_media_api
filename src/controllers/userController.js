@@ -169,3 +169,16 @@ exports.deleteUser = asyncHandler(async (req, res) => {
     message: messages.USER_DELETED,
   });
 });
+
+exports.getSuggestedUsers = asyncHandler(async (req, res) => {
+  const result = await userService.getSuggestedUsers(
+    req.user._id,
+    req.query
+  );
+
+  res.json({
+    success: true,
+    message: messages.USERS_RETRIEVED,
+    ...result,
+  });
+});

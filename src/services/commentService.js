@@ -74,10 +74,7 @@ exports.addComment = async (data, userId) => {
   });
 
   // ✅ Better way (no extra DB query)
-  await comment.populate("userId", "name email");
-
-  await comment.populate("userId", "name email");
-
+  await comment.populate("userId", "name email username");
 // 🔥 return consistent response
 return formatComment(comment, {
   isLiked: false,
@@ -109,7 +106,7 @@ exports.getComments = async (postId, userId, query) => {
   const comments = await Comment.find(filter)
     .sort({ createdAt: -1 })
     .limit(limit)
-    .populate("userId", "name")
+    .populate("userId", "name username")
     .lean();
 
   const commentIds = comments.map(c => c._id);
@@ -187,7 +184,7 @@ exports.getReplies = async (commentId, userId, query) => {
   const replies = await Comment.find(filter)
     .sort({ createdAt: -1 })
     .limit(limit)
-    .populate("userId", "name")
+    .populate("userId", "name username") // 🔥 also get username
     .lean();
 
   const replyIds = replies.map(r => r._id);

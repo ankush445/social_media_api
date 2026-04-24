@@ -18,5 +18,6 @@ router.put('/username', authMiddleware,userController.updateUsername);
 // router.get('/with-posts', authMiddleware, userController.getUsersWithPosts);
 router.post('/logout', authMiddleware, userController.logout);
 router.delete('/delete', authMiddleware, userController.deleteUser);
+router.get('/suggestions',authMiddleware, userController.getSuggestedUsers);
 
 module.exports = router;

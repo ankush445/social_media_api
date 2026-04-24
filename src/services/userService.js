@@ -2,6 +2,8 @@ const User = require('../models/user');
 const Post = require('../models/post');
 const Like = require('../models/like');
 const Comment = require('../models/comment');
+const Follow = require('../models/follow');
+
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
@@ -350,4 +352,146 @@ exports.deleteUser = async (id) => {
   await Comment.deleteMany({ userId: id });
 
   return user;
+};
+
+exports.getSuggestedUsers = async (userId, query) => {
+  const limit = parseInt(query.limit) || 10;
+  const cursor = query.cursor;
+  const search = query.search || '';
+
+  const userObjectId = new mongoose.Types.ObjectId(userId);
+
+  // 🔥 Step 1: get users I already follow
+  const following = await Follow.find({
+    requester: userObjectId,
+    status: 'accepted',
+  }).select('recipient');
+
+  const followingIds = following.map(f => f.recipient);
+
+  // include self
+  followingIds.push(userObjectId);
+
+  // 🔍 search filter
+  const searchFilter = search
+    ? {
+        $or: [
+          { name: { $regex: search, $options: 'i' } },
+          { username: { $regex: search, $options: 'i' } },
+        ],
+      }
+    : {};
+
+  // 🧠 cursor filter
+  const cursorFilter = cursor
+    ? { _id: { $gt: new mongoose.Types.ObjectId(cursor) } }
+    : {};
+
+  const users = await User.aggregate([
+    {
+      $match: {
+        _id: { $nin: followingIds }, // ❌ exclude following
+        ...searchFilter,
+        ...cursorFilter,
+      },
+    },
+
+    // 🔥 mutual friends (common following)
+{
+  $lookup: {
+    from: 'follows',
+    let: { targetUserId: '$_id' },
+    pipeline: [
+      {
+        $match: {
+          $expr: {
+            $and: [
+              { $eq: ['$recipient', '$$targetUserId'] },
+              { $in: ['$requester', followingIds] },
+              { $eq: ['$status', 'accepted'] },
+            ],
+          },
+        },
+      },
+
+      // 🔥 join user data
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'requester',
+          foreignField: '_id',
+          as: 'user',
+        },
+      },
+      { $unwind: '$user' },
+
+      // 🎯 only required fields
+      {
+        $project: {
+          _id: 0,
+          'user._id': 1,
+          'user.name': 1,
+          'user.username': 1,
+        },
+      },
+
+      // 🔥 limit to 2 users
+      { $limit: 2 },
+    ],
+    as: 'mutualUsers',
+  },
+},
+{
+  $lookup: {
+    from: 'follows',
+    let: { targetUserId: '$_id' },
+    pipeline: [
+      {
+        $match: {
+          $expr: {
+            $and: [
+              { $eq: ['$recipient', '$$targetUserId'] },
+              { $in: ['$requester', followingIds] },
+              { $eq: ['$status', 'accepted'] },
+            ],
+          },
+        },
+      },
+      { $count: 'count' },
+    ],
+    as: 'mutualCountData',
+  },
+},
+
+{
+  $addFields: {
+    mutualCount: {
+      $ifNull: [{ $arrayElemAt: ['$mutualCountData.count', 0] }, 0],
+    },
+  },
+},
+
+ {
+  $project: {
+    name: 1,
+    username: 1,
+    mutualCount: 1,
+    mutualUsers: '$mutualUsers.user', // 🔥 clean array
+  },
+},
+
+    {
+      $sort: { mutualCount: -1, createdAt: -1 }, // 🔥 better UX
+    },
+
+    {
+      $limit: limit,
+    },
+  ]);
+
+  return {
+    users,
+    nextCursor: users.length > 0 ? users[users.length - 1]._id : null,
+    hasMore: users.length === limit,
+  };
 };
