@@ -357,30 +357,19 @@ exports.deleteUser = async (id) => {
 exports.getSuggestedUsers = async (userId, query) => {
   const limit = parseInt(query.limit) || 10;
   const cursor = query.cursor;
-  const search = query.search || '';
 
   const userObjectId = new mongoose.Types.ObjectId(userId);
 
   // 🔥 Step 1: get users I already follow
   const following = await Follow.find({
-    requester: userObjectId,
-    status: 'accepted',
-  }).select('recipient');
+  requester: userObjectId,
+  status: { $in: ['accepted', 'pending'] }, // 🔥 FIX
+}).select('recipient');
 
   const followingIds = following.map(f => f.recipient);
 
   // include self
   followingIds.push(userObjectId);
-
-  // 🔍 search filter
-  const searchFilter = search
-    ? {
-        $or: [
-          { name: { $regex: search, $options: 'i' } },
-          { username: { $regex: search, $options: 'i' } },
-        ],
-      }
-    : {};
 
   // 🧠 cursor filter
   const cursorFilter = cursor
@@ -391,7 +380,6 @@ exports.getSuggestedUsers = async (userId, query) => {
     {
       $match: {
         _id: { $nin: followingIds }, // ❌ exclude following
-        ...searchFilter,
         ...cursorFilter,
       },
     },
@@ -482,6 +470,95 @@ exports.getSuggestedUsers = async (userId, query) => {
 
     {
       $sort: { mutualCount: -1, createdAt: -1 }, // 🔥 better UX
+    },
+
+    {
+      $limit: limit,
+    },
+  ]);
+
+  return {
+    users,
+    nextCursor: users.length > 0 ? users[users.length - 1]._id : null,
+    hasMore: users.length === limit,
+  };
+};
+
+exports.searchUsers = async (userId, query) => {
+  const limit = parseInt(query.limit) || 10;
+  const cursor = query.cursor;
+  const search = query.search || '';
+
+  if (!search) {
+    throw new ApiError(
+      statusCodes.BAD_REQUEST,
+      messages.SEARCH_QUERY_REQUIRED
+    );
+  }
+
+  const userObjectId = new mongoose.Types.ObjectId(userId);
+
+  // 🧠 cursor
+  const cursorFilter = cursor
+    ? { _id: { $gt: new mongoose.Types.ObjectId(cursor) } }
+    : {};
+
+  const users = await User.aggregate([
+    {
+      $match: {
+        _id: { $ne: userObjectId }, // ❌ exclude self
+        $or: [
+          { name: { $regex: search, $options: 'i' } },
+          { username: { $regex: search, $options: 'i' } },
+        ],
+        ...cursorFilter,
+      },
+    },
+
+    // 🔥 relation check (follow status)
+    {
+      $lookup: {
+        from: 'follows',
+        let: { targetUserId: '$_id' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ['$requester', userObjectId] },
+                  { $eq: ['$recipient', '$$targetUserId'] },
+                ],
+              },
+            },
+          },
+        ],
+        as: 'relation',
+      },
+    },
+
+    {
+      $addFields: {
+        followStatus: {
+          $cond: [
+            { $gt: [{ $size: '$relation' }, 0] },
+            { $arrayElemAt: ['$relation.status', 0] },
+            'none',
+          ],
+        },
+      },
+    },
+
+    {
+      $project: {
+        name: 1,
+        username: 1,
+        email: 1,
+        followStatus: 1, // 🔥 important
+      },
+    },
+
+    {
+      $sort: { createdAt: -1 },
     },
 
     {

@@ -68,4 +68,5 @@ PASSWORD_REQUIRED: 'Password is required',
   FOLLOW_STATS_FETCHED: 'Follow stats fetched successfully',
   UNFOLLOW_SUCCESS: 'Unfollowed successfully',
   FOLLOW_REQUEST_CANCELLED: 'Follow request cancelled',
+  SEARCH_QUERY_REQUIRED: 'Search query is required',
 };

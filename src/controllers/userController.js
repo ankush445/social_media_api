@@ -182,3 +182,15 @@ exports.getSuggestedUsers = asyncHandler(async (req, res) => {
     ...result,
   });
 });
+exports.searchUsers = asyncHandler(async (req, res) => {
+  const result = await userService.searchUsers(
+    req.user._id,
+    req.query
+  );
+
+  res.json({
+    success: true,
+    message: messages.USERS_RETRIEVED,
+    ...result,
+  });
+});

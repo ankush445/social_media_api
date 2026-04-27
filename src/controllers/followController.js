@@ -57,12 +57,15 @@ exports.getFollowing = asyncHandler(async (req, res) => {
 
 // ✅ Requests
 exports.getFollowRequests = asyncHandler(async (req, res) => {
-  const data = await followService.getFollowRequests(req.user._id);
+  const result = await followService.getFollowRequests(
+    req.user._id,
+    req.query
+  );
 
   res.status(statusCodes.SUCCESS).json({
     success: true,
     message: messages.FOLLOW_REQUESTS_FETCHED,
-    data,
+    ...result,
   });
 });
 

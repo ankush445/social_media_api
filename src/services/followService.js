@@ -85,11 +85,35 @@ exports.getFollowing = async (userId) => {
 };
 
 // ✅ Pending Requests
-exports.getFollowRequests = async (userId) => {
-  return await Follow.find({
+exports.getFollowRequests = async (userId, query) => {
+  const limit = parseInt(query.limit) || 10;
+  const cursor = query.cursor;
+
+  const filter = {
     recipient: userId,
     status: 'pending',
-  }).populate('requester', 'name username');
+  };
+
+  // 🧠 cursor filter (createdAt based)
+  if (cursor) {
+    filter.createdAt = { $lt: new Date(cursor) };
+  }
+
+  const requests = await Follow.find(filter)
+    .sort({ createdAt: -1 }) // latest first
+    .limit(limit)
+    .select('-__v')
+    .populate('requester', 'name username')
+    .lean(); // 🔥 important
+
+  return {
+    data: requests,
+    nextCursor:
+      requests.length > 0
+        ? requests[requests.length - 1].createdAt
+        : null,
+    hasMore: requests.length === limit,
+  };
 };
 
 // ✅ Stats
