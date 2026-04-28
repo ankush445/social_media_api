@@ -19,14 +19,14 @@ router.put(
 
 // 🔥 Followers
 router.get(
-  '/followers',
+  '/followers/:userId',
   authMiddleware,
   followController.getFollowers
 );
 
 // 🔥 Following
 router.get(
-  '/following',
+  '/following/:userId',
   authMiddleware,
   followController.getFollowing
 );
@@ -57,6 +57,12 @@ router.delete(
   '/cancel/:userId',
   authMiddleware,
   followController.cancelFollowRequest
+);
+// 🔥 Remove follower
+router.delete(
+  '/remove-follower/:followerId',
+  authMiddleware,
+  followController.removeFollower
 );
 
 module.exports = router;

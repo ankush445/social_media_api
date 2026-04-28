@@ -27,31 +27,9 @@ exports.respondFollowRequest = asyncHandler(async (req, res) => {
   res.status(statusCodes.SUCCESS).json({
     success: true,
     message:
-      action === 'accepted'
+      req.body.action === 'accepted'
         ? messages.FOLLOW_ACCEPTED
         : messages.FOLLOW_REJECTED,
-  });
-});
-
-// ✅ Followers
-exports.getFollowers = asyncHandler(async (req, res) => {
-  const data = await followService.getFollowers(req.user._id);
-
-  res.status(statusCodes.SUCCESS).json({
-    success: true,
-    message: messages.FOLLOWERS_FETCHED,
-    data,
-  });
-});
-
-// ✅ Following
-exports.getFollowing = asyncHandler(async (req, res) => {
-  const data = await followService.getFollowing(req.user._id);
-
-  res.status(statusCodes.SUCCESS).json({
-    success: true,
-    message: messages.FOLLOWING_FETCHED,
-    data,
   });
 });
 
@@ -102,5 +80,48 @@ exports.cancelFollowRequest = asyncHandler(async (req, res) => {
   res.status(statusCodes.SUCCESS).json({
     success: true,
     message: messages.FOLLOW_REQUEST_CANCELLED,
+  });
+});
+
+// ✅ Following
+exports.getFollowing = asyncHandler(async (req, res) => {
+  const result = await followService.getFollowing(
+    req.params.userId,   // 🔥 target user
+    req.user._id,        // 🔥 current user
+    req.query
+  );
+
+  res.status(statusCodes.SUCCESS).json({
+    success: true,
+    message: messages.FOLLOWING_FETCHED,
+    ...result,
+  });
+});
+
+// ✅ Followers
+exports.getFollowers = asyncHandler(async (req, res) => {
+  const result = await followService.getFollowers(
+    req.params.userId,   // 🔥 target user
+    req.user._id,        // 🔥 current user
+    req.query
+  );
+
+  res.status(statusCodes.SUCCESS).json({
+    success: true,
+    message: messages.FOLLOWERS_FETCHED,
+    ...result,
+  });
+});
+
+// ✅ Remove follower
+exports.removeFollower = asyncHandler(async (req, res) => {
+  await followService.removeFollower(
+    req.user._id,
+    req.params.followerId
+  );
+
+  res.status(statusCodes.SUCCESS).json({
+    success: true,
+    message: messages.FOLLOWER_REMOVED,
   });
 });

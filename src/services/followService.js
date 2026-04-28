@@ -3,6 +3,9 @@ const ApiError = require('../utils/appError');
 const statusCodes = require('../constants/statusCodes');
 const messages = require('../constants/messages');
 
+const mongoose = require('mongoose');
+
+
 // ✅ Send Follow Request
 exports.sendFollowRequest = async (userId, targetUserId) => {
 if (userId.toString() === targetUserId.toString()) {
@@ -66,22 +69,6 @@ if (!action) {
   await follow.save();
 
   return follow;
-};
-
-// ✅ Followers
-exports.getFollowers = async (userId) => {
-  return await Follow.find({
-    recipient: userId,
-    status: 'accepted',
-  }).populate('requester', 'name username');
-};
-
-// ✅ Following
-exports.getFollowing = async (userId) => {
-  return await Follow.find({
-    requester: userId,
-    status: 'accepted',
-  }).populate('recipient', 'name username');
 };
 
 // ✅ Pending Requests
@@ -167,4 +154,251 @@ exports.cancelFollowRequest = async (userId, targetUserId) => {
   await follow.deleteOne();
 
   return true;
+};
+
+// 🔥 COMMON FUNCTION (reuse)
+// 🔥 COMMON FUNCTION (UPDATED)
+const buildRelationLookup = (currentId, type) => [
+    // 🔥 my relation (accepted + pending)
+  {
+    $lookup: {
+      from: 'follows',
+      let: { userId: '$user._id' },
+      pipeline: [
+        {
+          $match: {
+            $expr: {
+              $and: [
+                { $eq: ['$requester', currentId] },
+                { $eq: ['$recipient', '$$userId'] },
+              ],
+            },
+          },
+        },
+      ],
+      as: 'myRelation',
+    },
+  },
+
+  // 🔥 this user follows current user (only accepted)
+  {
+    $lookup: {
+      from: 'follows',
+      let: { userId: '$user._id' },
+      pipeline: [
+        {
+          $match: {
+            $expr: {
+              $and: [
+                { $eq: ['$requester', '$$userId'] },
+                { $eq: ['$recipient', currentId] },
+                { $eq: ['$status', 'accepted'] },
+              ],
+            },
+          },
+        },
+      ],
+      as: 'isFollower',
+    },
+  },
+
+  // 🔥 extract my status
+  {
+    $addFields: {
+      myStatus: {
+        $ifNull: [{ $arrayElemAt: ['$myRelation.status', 0] }, null],
+      },
+    },
+  },
+
+  // 🔥 FINAL RELATION LOGIC
+{
+  $addFields: {
+    relationType: {
+      $switch: {
+        branches: [
+          {
+            case: {
+              $and: [
+                { $eq: ['$myStatus', 'accepted'] },
+                { $gt: [{ $size: '$isFollower' }, 0] },
+              ],
+            },
+            then: 'mutual',
+          },
+          {
+            case: { $eq: ['$myStatus', 'pending'] },
+            then: 'pending',
+          },
+          {
+            case: { $eq: ['$myStatus', 'accepted'] },
+            then: 'following',
+          },
+          {
+            case: { $gt: [{ $size: '$isFollower' }, 0] },
+            then: 'follower',
+          },
+        ],
+        default: type === 'followers' ? 'follower' : 'following',
+      },
+    },
+  },
+}
+];
+// ✅ FOLLOWERS API
+exports.getFollowers = async (targetUserId, currentUserId, query) => {
+  const limit = parseInt(query.limit) || 10;
+  const cursor = query.cursor;
+  const search = query.search || '';
+
+  const targetId = new mongoose.Types.ObjectId(targetUserId);
+  const currentId = new mongoose.Types.ObjectId(currentUserId);
+
+  const cursorFilter = cursor
+    ? { createdAt: { $lt: new Date(cursor) } }
+    : {};
+
+  const searchFilter = search
+    ? {
+        $or: [
+          { 'user.name': { $regex: search, $options: 'i' } },
+          { 'user.username': { $regex: search, $options: 'i' } },
+        ],
+      }
+    : {};
+
+  const data = await Follow.aggregate([
+    {
+      $match: {
+        recipient: targetId,
+        status: 'accepted',
+        ...cursorFilter,
+      },
+    },
+
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'requester',
+        foreignField: '_id',
+        as: 'user',
+      },
+    },
+    { $unwind: '$user' },
+
+    { $match: searchFilter },
+
+...buildRelationLookup(currentId, 'followers'),
+    {
+      $project: {
+        _id: '$user._id',
+        name: '$user.name',
+        username: '$user.username',
+        relationType: 1,
+        createdAt: 1,
+      },
+    },
+
+    { $sort: { createdAt: -1 } },
+    { $limit: limit },
+  ]);
+
+  return {
+    data,
+    nextCursor:
+      data.length > 0 ? data[data.length - 1].createdAt : null,
+    hasMore: data.length === limit,
+  };
+};
+
+// ✅ FOLLOWING API
+exports.getFollowing = async (targetUserId, currentUserId, query) => {
+  const limit = parseInt(query.limit) || 10;
+  const cursor = query.cursor;
+  const search = query.search || '';
+
+  const targetId = new mongoose.Types.ObjectId(targetUserId);
+  const currentId = new mongoose.Types.ObjectId(currentUserId);
+
+  const cursorFilter = cursor
+    ? { createdAt: { $lt: new Date(cursor) } }
+    : {};
+
+  const searchFilter = search
+    ? {
+        $or: [
+          { 'user.name': { $regex: search, $options: 'i' } },
+          { 'user.username': { $regex: search, $options: 'i' } },
+        ],
+      }
+    : {};
+
+  const data = await Follow.aggregate([
+    {
+      $match: {
+        requester: targetId,
+        status: 'accepted',
+        ...cursorFilter,
+      },
+    },
+
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'recipient',
+        foreignField: '_id',
+        as: 'user',
+      },
+    },
+    { $unwind: '$user' },
+
+    { $match: searchFilter },
+
+    ...buildRelationLookup(currentId, 'following'),
+
+    {
+      $project: {
+        _id: '$user._id',
+        name: '$user.name',
+        username: '$user.username',
+        relationType: 1,
+        createdAt: 1,
+      },
+    },
+
+    { $sort: { createdAt: -1 } },
+    { $limit: limit },
+  ]);
+
+  return {
+    data,
+    nextCursor:
+      data.length > 0 ? data[data.length - 1].createdAt : null,
+    hasMore: data.length === limit,
+  };
+};
+
+// ✅ Remove follower
+exports.removeFollower = async (currentUserId, followerId) => {
+  const currentId = new mongoose.Types.ObjectId(currentUserId);
+  const followerObjectId = new mongoose.Types.ObjectId(followerId);
+
+  // 🔍 check follow exists
+  const follow = await Follow.findOne({
+    requester: followerObjectId,
+    recipient: currentId,
+    status: 'accepted',
+  });
+
+  if (!follow) {
+    throw new ApiError(
+      statusCodes.NOT_FOUND,
+      messages.FOLLOW_NOT_FOUND
+    );
+  }
+
+  // ❌ remove relation
+  await Follow.deleteOne({ _id: follow._id });
+
+  return;
 };

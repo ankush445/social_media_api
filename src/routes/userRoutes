@@ -15,7 +15,7 @@ router.put('/username', authMiddleware,userController.updateUsername);
 
 // router.get('/me', authMiddleware, userController.getMyProfile);
 // router.get('/getUsers', authMiddleware, userController.getUsers);
-// router.get('/with-posts', authMiddleware, userController.getUsersWithPosts);
+router.get('/profile/:userId',authMiddleware,userController.getUserProfile);
 router.post('/logout', authMiddleware, userController.logout);
 router.delete('/delete', authMiddleware, userController.deleteUser);
 router.get('/suggestions',authMiddleware, userController.getSuggestedUsers);

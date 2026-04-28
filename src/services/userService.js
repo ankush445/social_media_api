@@ -297,47 +297,177 @@ exports.updateUsername = async (userId, username) => {
 // };
 
 // // ✅ My Profile with Posts
-// exports.getMyProfileWithPosts = async (userId) => {
-//   const user = await User.aggregate([
-//     {
-//       $match: {
-//         _id: new mongoose.Types.ObjectId(userId),
-//       },
-//     },
-//     {
-//       $lookup: {
-//         from: 'posts',
-//         let: { userId: '$_id' },
-//         pipeline: [
-//           {
-//             $match: {
-//               $expr: { $eq: ['$userId', '$$userId'] },
-//             },
-//           },
-//           {
-//             $project: {
-//               __v: 0,
-//             },
-//           },
-//         ],
-//         as: 'posts',
-//       },
-//     },
-//     {
-//       $project: {
-//         name: 1,
-//         email: 1,
-//         posts: 1,
-//       },
-//     },
-//   ]);
+exports.getUserProfile = async (profileUserId, reqUserId, query) => {
+  const limit = parseInt(query.limit) || 10;
+  const cursor = query.cursor;
 
-//   if (!user.length) {
-//     throw new ApiError(statusCodes.NOT_FOUND, messages.USER_NOT_FOUND);
-//   }
+  const userObjectId = new mongoose.Types.ObjectId(profileUserId);
+  const currentUserId = new mongoose.Types.ObjectId(reqUserId);
 
-//   return user[0];
-// };
+  // 🔥 1. USER DETAILS
+  const user = await User.findById(userObjectId)
+    .select('name email username')
+    .lean();
+
+  if (!user) {
+    throw new ApiError(statusCodes.NOT_FOUND, messages.USER_NOT_FOUND);
+  }
+
+  // 🔥 followers count
+  const followers = await Follow.countDocuments({
+    recipient: userObjectId,
+    status: 'accepted',
+  });
+
+  // 🔥 following count
+  const following = await Follow.countDocuments({
+    requester: userObjectId,
+    status: 'accepted',
+  });
+
+  // 🔥 post count
+  const postCount = await Post.countDocuments({
+    userId: userObjectId,
+  });
+
+  // 🔥 2. FOLLOW STATUS (IMPORTANT 🔥)
+  let followStatus = 'none';
+
+if (!userObjectId.equals(currentUserId)) {
+  // 🔥 my relation (accepted / pending)
+  const myRelation = await Follow.findOne({
+    requester: currentUserId,
+    recipient: userObjectId,
+  }).select('status');
+
+  // 🔥 reverse relation (only accepted)
+  const isFollower = await Follow.findOne({
+    requester: userObjectId,
+    recipient: currentUserId,
+    status: 'accepted',
+  });
+
+  const myStatus = myRelation?.status || null;
+
+  if (myStatus === 'accepted' && isFollower) {
+    followStatus = 'mutual';
+  } else if (myStatus === 'pending') {
+    followStatus = 'pending';
+  } else if (myStatus === 'accepted') {
+    followStatus = 'following';
+  } else if (isFollower) {
+    followStatus = 'follower';
+  } else {
+    followStatus = 'none';
+  }
+}
+
+  // 🔥 3. POSTS (Cursor Pagination)
+  const postFilter = { userId: userObjectId };
+
+  if (cursor) {
+    postFilter.createdAt = { $lt: new Date(cursor) };
+  }
+
+const posts = await Post.aggregate([
+  {
+    $match: postFilter,
+  },
+  {
+    $sort: { createdAt: -1 },
+  },
+  {
+    $limit: limit,
+  },
+
+  // ❤️ likes
+  {
+    $lookup: {
+      from: 'likes',
+      localField: '_id',
+      foreignField: 'postId',
+      as: 'likes',
+    },
+  },
+
+  // 💬 comments
+  {
+    $lookup: {
+      from: 'comments',
+      localField: '_id',
+      foreignField: 'postId',
+      as: 'comments',
+    },
+  },
+
+  // 🔥 isLiked
+  {
+    $lookup: {
+      from: 'likes',
+      let: { postId: '$_id' },
+      pipeline: [
+        {
+          $match: {
+            $expr: {
+              $and: [
+                { $eq: ['$postId', '$$postId'] },
+                { $eq: ['$userId', currentUserId] },
+              ],
+            },
+          },
+        },
+      ],
+      as: 'likedByMe',
+    },
+  },
+
+  {
+    $addFields: {
+      likeCount: { $size: '$likes' },
+      commentCount: { $size: '$comments' },
+      isLiked: { $gt: [{ $size: '$likedByMe' }, 0] },
+
+      // 🔥 ADD USER INFO HERE
+      user: {
+        _id: userObjectId,
+        name: user.name,
+        username: user.username,
+      },
+    },
+  },
+
+  {
+    $project: {
+      title: 1,
+      content: 1,
+      createdAt: 1,
+      likeCount: 1,
+      commentCount: 1,
+      isLiked: 1,
+      user: 1, // 🔥 include
+    },
+  },
+]);
+
+  return {
+    user: {
+      ...user,
+      followers,
+      following,
+      postCount,
+      followStatus, // 🔥 ADD HERE
+    },
+
+    posts,
+
+    nextCursor:
+      posts.length > 0
+        ? posts[posts.length - 1].createdAt
+        : null,
+
+    hasMore: posts.length === limit,
+  };
+};
 
 // ✅ Users with Posts
 exports.deleteUser = async (id) => {
@@ -498,7 +628,6 @@ exports.searchUsers = async (userId, query) => {
 
   const userObjectId = new mongoose.Types.ObjectId(userId);
 
-  // 🧠 cursor
   const cursorFilter = cursor
     ? { _id: { $gt: new mongoose.Types.ObjectId(cursor) } }
     : {};
@@ -506,7 +635,7 @@ exports.searchUsers = async (userId, query) => {
   const users = await User.aggregate([
     {
       $match: {
-        _id: { $ne: userObjectId }, // ❌ exclude self
+        _id: { $ne: userObjectId },
         $or: [
           { name: { $regex: search, $options: 'i' } },
           { username: { $regex: search, $options: 'i' } },
@@ -515,7 +644,7 @@ exports.searchUsers = async (userId, query) => {
       },
     },
 
-    // 🔥 relation check (follow status)
+    // 🔥 my relation (accepted + pending)
     {
       $lookup: {
         from: 'follows',
@@ -532,18 +661,78 @@ exports.searchUsers = async (userId, query) => {
             },
           },
         ],
-        as: 'relation',
+        as: 'myRelation',
       },
     },
 
+    // 🔥 reverse relation (only accepted)
+    {
+      $lookup: {
+        from: 'follows',
+        let: { targetUserId: '$_id' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ['$requester', '$$targetUserId'] },
+                  { $eq: ['$recipient', userObjectId] },
+                  { $eq: ['$status', 'accepted'] },
+                ],
+              },
+            },
+          },
+        ],
+        as: 'isFollower',
+      },
+    },
+
+    // 🔥 extract my status
+    {
+      $addFields: {
+        myStatus: {
+          $ifNull: [{ $arrayElemAt: ['$myRelation.status', 0] }, null],
+        },
+      },
+    },
+
+    // 🔥 FINAL RELATION LOGIC
     {
       $addFields: {
         followStatus: {
-          $cond: [
-            { $gt: [{ $size: '$relation' }, 0] },
-            { $arrayElemAt: ['$relation.status', 0] },
-            'none',
-          ],
+          $switch: {
+            branches: [
+              // mutual
+              {
+                case: {
+                  $and: [
+                    { $eq: ['$myStatus', 'accepted'] },
+                    { $gt: [{ $size: '$isFollower' }, 0] },
+                  ],
+                },
+                then: 'mutual',
+              },
+
+              // pending
+              {
+                case: { $eq: ['$myStatus', 'pending'] },
+                then: 'pending',
+              },
+
+              // following
+              {
+                case: { $eq: ['$myStatus', 'accepted'] },
+                then: 'following',
+              },
+
+              // follower
+              {
+                case: { $gt: [{ $size: '$isFollower' }, 0] },
+                then: 'follower',
+              },
+            ],
+            default: 'none',
+          },
         },
       },
     },
@@ -553,7 +742,7 @@ exports.searchUsers = async (userId, query) => {
         name: 1,
         username: 1,
         email: 1,
-        followStatus: 1, // 🔥 important
+        followStatus: 1,
       },
     },
 
@@ -568,7 +757,8 @@ exports.searchUsers = async (userId, query) => {
 
   return {
     users,
-    nextCursor: users.length > 0 ? users[users.length - 1]._id : null,
+    nextCursor:
+      users.length > 0 ? users[users.length - 1]._id : null,
     hasMore: users.length === limit,
   };
 };

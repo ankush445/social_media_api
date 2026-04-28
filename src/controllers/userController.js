@@ -1,6 +1,7 @@
 const userService = require('../services/userService');
 const { CREATED, SUCCESS } = require('../constants/statusCodes');
 const messages = require('../constants/messages');
+const statusCodes = require('../constants/statusCodes');
 const asyncHandler = require('../utils/asyncHandler');
 const jwt = require('jsonwebtoken');
 const User = require('../models/user');
@@ -139,15 +140,19 @@ exports.updateUsername = asyncHandler(async (req, res) => {
 // });
 
 // // ✅ Get Users with Posts
-// exports.getUsersWithPosts = asyncHandler(async (req, res) => {
-//   const data = await userService.getUsersWithPosts();
+exports.getUserProfile = asyncHandler(async (req, res) => {
+  const result = await userService.getUserProfile(
+    req.params.userId, // profile user
+    req.user._id,      // current user
+    req.query
+  );
 
-//   res.status(SUCCESS).json({
-//     success: true,
-//     message: messages.USERS_WITH_POSTS_FETCHED,
-//     data,
-//   });
-// });
+  res.status(statusCodes.SUCCESS).json({
+    success: true,
+    message: 'Profile fetched successfully',
+    ...result,
+  });
+});
 
 // ✅ Delete User
 exports.deleteUser = asyncHandler(async (req, res) => {
